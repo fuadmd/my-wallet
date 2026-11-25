@@ -118,7 +118,7 @@ function dash(){
   return `${mi.length?`<div class="warn">أدخل من تبويب «الإعدادات»: ${esc(mi.join('، '))} — حتى تُحسب القيم بدقة.</div>`:''}
   <div class="seg">${TYPES.map(t=>`<button data-fa="${t[0]}" class="${fA===t[0]?'on':''}">${t[1]}</button>`).join('')}</div>
   <div class="card hero"><small>${fA==='all'?'صافي الثروة الإجمالي':'إجمالي '+esc(lbl)}</small><div class="big">${fmt(val[fA])}</div>
-  <small>ذهب صافٍ (عيار 24 مكافئ): ${num(gg)} غرام</small></div>
+  <small>إجمالي الذهب: ${num(gg)} غ بمكافئ عيار 24 · ${num(gg*24/21)} غ بمكافئ عيار 21</small></div>
   ${det}
   <div class="card"><h3>توزيع الأصول</h3>
   <div class="bar">${parts.map(p=>tot>0&&p[1]>0?`<div style="width:${p[1]/tot*100}%;background:${p[2]}"></div>`:'').join('')}</div>
@@ -132,6 +132,8 @@ function dash(){
   <div class="kpi"><small>صافي شهري (عائد − مصروف)</small><b class="${net>=0?'pos':'neg'}">${fmt(net)}</b></div>
   <div class="kpi"><small>تغطية المصاريف بالأصول</small><b>${cover?num(cover)+' شهر':'—'}</b></div>
   <div class="kpi"><small>عائد الاستثمار المتوقع</small><b>${inv>0?num(ya/inv*100)+'%':'—'}</b></div>
+  <div class="kpi"><small>إجمالي الذهب (عيار 24)</small><b style="color:var(--gold)">${num(gg)} غ</b></div>
+  <div class="kpi"><small>إجمالي الذهب (عيار 21)</small><b style="color:var(--gold)">${num(gg*24/21)} غ</b></div>
   <div class="kpi"><small>عدد السجلات</small><b>${A.length+S.inv.length+S.exp.length}</b></div></div>
   <div class="card" style="margin-top:12px"><h3>المصروف السنوي حسب الفئة</h3>
   ${cats.length?cats.map(c=>`<div class="li"><span>${esc(c[0])}</span><span>${fmt(c[1])}</span></div>`).join(''):'<div class="sub">لا مصروفات بعد</div>'}</div>`}
