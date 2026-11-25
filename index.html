@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>محفظتي المالية</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#f6f4ef;--card:#fff;--tx:#1d2a26;--mut:#6b7a74;--br:#e4e0d6;--pri:#0f6b57;--pri2:#e3f1ec;--gold:#b8892b;--red:#b4443a;--bl:#2f5f8f;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121816;--card:#1b2420;--tx:#e8efec;--mut:#92a29b;--br:#2b3832;--pri:#3fb596;--pri2:#1d3a31;--gold:#e0b25a;--red:#e0766b;--bl:#6fa3d6}}
+:root[data-theme="dark"]{--bg:#121816;--card:#1b2420;--tx:#e8efec;--mut:#92a29b;--br:#2b3832;--pri:#3fb596;--pri2:#1d3a31;--gold:#e0b25a;--red:#e0766b;--bl:#6fa3d6}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:Cairo,Tahoma,"Segoe UI",sans-serif;line-height:1.6}
+main{max-width:900px;margin:auto;padding:12px 14px 90px}
+h1{font-size:20px;margin:6px 0 2px}.sub{color:var(--mut);font-size:13px;margin-bottom:10px}
+nav{position:fixed;bottom:0;inset-inline:0;background:var(--card);border-top:1px solid var(--br);display:flex;justify-content:space-around;padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));z-index:5}
+nav button{background:none;border:0;color:var(--mut);font:inherit;font-size:12px;padding:4px 8px;border-radius:10px;cursor:pointer}
+nav button.on{color:var(--pri);background:var(--pri2);font-weight:700}
+.card{background:var(--card);border:1px solid var(--br);border-radius:16px;padding:14px;margin-bottom:12px}
+.hero{background:linear-gradient(135deg,var(--pri),#0b4a3d);color:#fff;border:0}
+.hero .big{font-size:30px;font-weight:700}.hero small{opacity:.8}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.kpi{background:var(--card);border:1px solid var(--br);border-radius:14px;padding:10px 12px}
+.kpi small{color:var(--mut);display:block;font-size:12px}.kpi b{font-size:17px}
+.pos{color:var(--pri)}.neg{color:var(--red)}
+label{display:block;font-size:12px;color:var(--mut);margin:8px 0 2px}
+input,select,textarea{width:100%;font:inherit;padding:9px 10px;border:1px solid var(--br);border-radius:10px;background:var(--bg);color:var(--tx)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btn{background:var(--pri);color:#fff;border:0;border-radius:12px;padding:10px 16px;font:inherit;font-weight:600;cursor:pointer;margin-top:12px}
+.btn.alt{background:var(--pri2);color:var(--pri)}.btn.red{background:none;color:var(--red);padding:2px 8px;margin:0;font-size:13px}
+.seg{display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap}
+.seg button{flex:1;border:1px solid var(--br);background:var(--card);color:var(--tx);border-radius:10px;padding:8px;font:inherit;cursor:pointer}
+.seg button.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+.bar{display:flex;height:14px;border-radius:8px;overflow:hidden;background:var(--br);margin:8px 0}
+.lg{display:flex;flex-wrap:wrap;gap:10px;font-size:12px;color:var(--mut)}.lg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-inline-end:4px}
+.li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--br)}
+.li:last-child{border:0}.li small{color:var(--mut);display:block}
+.warn{background:#fff3d6;color:#6b4a00;border-radius:12px;padding:10px;font-size:13px;margin-bottom:12px}
+.tw{overflow-x:auto}
+h3{margin:0 0 6px;font-size:15px}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<nav id="nav"></nav>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const OZ=31.1035, KEY='fin-app-v1';
+const KARATS=[24,22,21,18,14,10], SILV=[999,925,900];
+const CATS=['سكن','طعام','مواصلات','فواتير','صحة','تعليم','ترفيه','ملابس','أسرة','أخرى'];
+const FREQ=['شهري','سنوي','مرة واحدة'];
+const SAV=[['id','المعرف'],['kind','النوع'],['cur','العملة'],['amt','المبلغ'],['metal','المعدن'],['karat','العيار'],['grams','الوزن (غرام)'],['note','ملاحظة'],['date','التاريخ']];
+const INV=[['id','المعرف'],['name','الاستثمار'],['amt','المبلغ'],['cur','العملة'],['ret','العائد السنوي %'],['note','ملاحظة'],['date','التاريخ']];
+const EXP=[['id','المعرف'],['cat','الفئة'],['amt','المبلغ'],['cur','العملة'],['freq','التكرار'],['note','ملاحظة'],['date','التاريخ']];
+const def=()=>({rates:{USD:1,TRY:0,SYP:0,EUR:0,SAR:0},gold:0,silver:0,disp:'USD',man:{},upd:'',sync:{url:'',token:''},ts:0,sav:[],inv:[],exp:[]});
+let pstat='',sstat='';
+let S=def(), tab='dash', addSec='sav', savKind='عملة', toast='';
+try{const r=localStorage.getItem(KEY);if(r)S=Object.assign(def(),JSON.parse(r))}catch(e){}
+const saveLocal=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+let pushT;const save=()=>{S.ts=Date.now();saveLocal();clearTimeout(pushT);pushT=setTimeout(push,1500)};
+const today=()=>new Date().toISOString().slice(0,10);
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+const toUSD=(a,c)=>{a=+a||0;if(c==='USD')return a;const r=+S.rates[c];return r>0?a/r:0};
+const fromUSD=u=>{const r=+S.rates[S.disp]||0;return u*(S.disp==='USD'?1:r)};
+const fmt=u=>{const v=fromUSD(u);return new Intl.NumberFormat('en-US',{maximumFractionDigits:v>=1000?0:2}).format(v)+' '+S.disp};
+const num=n=>new Intl.NumberFormat('en-US',{maximumFractionDigits:2}).format(n);
+function savUSD(x){
+  if(x.kind==='عملة')return toUSD(x.amt,x.cur);
+  const g=+x.grams||0;
+  if(x.metal==='ذهب')return g/OZ*(+S.gold||0)*(+x.karat/24);
+  return g/OZ*(+S.silver||0)*(+x.karat/1000);
+}
+const invUSD=x=>toUSD(x.amt,x.cur);
+function expMonthly(x){const u=toUSD(x.amt,x.cur);
+  if(x.freq==='شهري')return u; if(x.freq==='سنوي')return u/12;
+  return (x.date||'').slice(0,7)===today().slice(0,7)?u:0}
+function expAnnual(x){const u=toUSD(x.amt,x.cur);
+  if(x.freq==='شهري')return u*12; if(x.freq==='سنوي')return u;
+  return (x.date||'').slice(0,4)===today().slice(0,4)?u:0}
+const sum=(a,f)=>a.reduce((t,x)=>t+f(x),0);
+
+function missing(){
+  const cs=new Set([...S.sav.filter(x=>x.kind==='عملة').map(x=>x.cur),...S.inv.map(x=>x.cur),...S.exp.map(x=>x.cur)]);
+  const m=[...cs].filter(c=>c!=='USD'&&!(+S.rates[c]>0)).map(c=>'سعر صرف '+c);
+  if(S.sav.some(x=>x.metal==='ذهب')&&!(+S.gold>0))m.push('سعر الذهب');
+  if(S.sav.some(x=>x.metal==='فضة')&&!(+S.silver>0))m.push('سعر الفضة');
+  if(S.disp!=='USD'&&!(+S.rates[S.disp]>0))m.push('سعر عملة العرض '+S.disp);
+  return m}
+
+function dash(){
+  const cash=sum(S.sav.filter(x=>x.kind==='عملة'),savUSD);
+  const gold=sum(S.sav.filter(x=>x.metal==='ذهب'),savUSD);
+  const silv=sum(S.sav.filter(x=>x.metal==='فضة'),savUSD);
+  const inv=sum(S.inv,invUSD), tot=cash+gold+silv+inv;
+  const ya=sum(S.inv,x=>invUSD(x)*(+x.ret||0)/100), ym=ya/12;
+  const em=sum(S.exp,expMonthly), ea=sum(S.exp,expAnnual);
+  const parts=[['نقد وعملات',cash,'var(--pri)'],['ذهب',gold,'var(--gold)'],['فضة',silv,'#8a97a0'],['استثمارات',inv,'var(--bl)']];
+  const gg=sum(S.sav.filter(x=>x.metal==='ذهب'),x=>(+x.grams||0)*(+x.karat/24));
+  const bycat={};S.exp.forEach(x=>{bycat[x.cat]=(bycat[x.cat]||0)+expAnnual(x)});
+  const cats=Object.entries(bycat).filter(e=>e[1]>0).sort((a,b)=>b[1]-a[1]);
+  const net=ym-em, cover=em>0?tot/em:0;
+  const mi=missing();
+  return `${mi.length?`<div class="warn">أدخل من تبويب «الإعدادات»: ${esc(mi.join('، '))} — حتى تُحسب القيم بدقة.</div>`:''}
+  <div class="card hero"><small>صافي الثروة الإجمالي</small><div class="big">${fmt(tot)}</div>
+  <small>ذهب صافٍ (عيار 24 مكافئ): ${num(gg)} غرام</small></div>
+  <div class="card"><h3>توزيع الأصول</h3>
+  <div class="bar">${parts.map(p=>tot>0&&p[1]>0?`<div style="width:${p[1]/tot*100}%;background:${p[2]}"></div>`:'').join('')}</div>
+  <div class="lg">${parts.map(p=>`<span><i style="background:${p[2]}"></i>${p[0]}: ${fmt(p[1])}${tot>0?' ('+Math.round(p[1]/tot*100)+'%)':''}</span>`).join('')}</div></div>
+  <div class="grid">
+  <div class="kpi"><small>المصروف الشهري</small><b class="neg">${fmt(em)}</b></div>
+  <div class="kpi"><small>المصروف السنوي</small><b class="neg">${fmt(ea)}</b></div>
+  <div class="kpi"><small>العائد الشهري</small><b class="pos">${fmt(ym)}</b></div>
+  <div class="kpi"><small>العائد السنوي</small><b class="pos">${fmt(ya)}</b></div>
+  <div class="kpi"><small>صافي شهري (عائد − مصروف)</small><b class="${net>=0?'pos':'neg'}">${fmt(net)}</b></div>
+  <div class="kpi"><small>تغطية المصاريف بالأصول</small><b>${cover?num(cover)+' شهر':'—'}</b></div>
+  <div class="kpi"><small>عائد الاستثمار المتوقع</small><b>${inv>0?num(ya/inv*100)+'%':'—'}</b></div>
+  <div class="kpi"><small>عدد السجلات</small><b>${S.sav.length+S.inv.length+S.exp.length}</b></div></div>
+  <div class="card" style="margin-top:12px"><h3>المصروف السنوي حسب الفئة</h3>
+  ${cats.length?cats.map(c=>`<div class="li"><span>${esc(c[0])}</span><span>${fmt(c[1])}</span></div>`).join(''):'<div class="sub">لا مصروفات بعد</div>'}</div>`}
+
+const opt=(arr,v)=>arr.map(a=>`<option ${String(a)===String(v)?'selected':''}>${esc(a)}</option>`).join('');
+const curOpts=()=>opt(Object.keys(S.rates));
+function add(){
+  const seg=`<div class="seg">${[['sav','مدخرات'],['inv','استثمار'],['exp','مصروف']].map(s=>`<button data-sec="${s[0]}" class="${addSec===s[0]?'on':''}">${s[1]}</button>`).join('')}</div>`;
+  let f='';
+  if(addSec==='sav'){
+    f=`<div class="seg">${['عملة','معدن'].map(k=>`<button data-kind="${k}" class="${savKind===k?'on':''}">${k}</button>`).join('')}</div>`;
+    if(savKind==='عملة')f+=`<div class="row"><div><label>العملة</label><select id="cur">${curOpts()}</select></div><div><label>المبلغ</label><input id="amt" type="number" step="any" inputmode="decimal"></div></div>`;
+    else f+=`<div class="row"><div><label>المعدن</label><select id="metal"><option>ذهب</option><option>فضة</option></select></div><div><label>العيار</label><select id="karat">${opt(KARATS,21)}</select></div></div><label>الوزن بالغرام</label><input id="grams" type="number" step="any" inputmode="decimal"><div class="sub" id="khint">للفضة اختر العيار من القائمة: 999 / 925 / 900</div>`;
+  }
+  if(addSec==='inv')f=`<label>اسم الاستثمار</label><input id="name" placeholder="مثال: عقار، أسهم، مشروع"><div class="row"><div><label>المبلغ</label><input id="amt" type="number" step="any" inputmode="decimal"></div><div><label>العملة</label><select id="cur">${curOpts()}</select></div></div><label>العائد السنوي المتوقع %</label><input id="ret" type="number" step="any" inputmode="decimal">`;
+  if(addSec==='exp')f=`<div class="row"><div><label>الفئة</label><select id="cat">${opt(CATS)}</select></div><div><label>التكرار</label><select id="freq">${opt(FREQ)}</select></div></div><div class="row"><div><label>المبلغ</label><input id="amt" type="number" step="any" inputmode="decimal"></div><div><label>العملة</label><select id="cur">${curOpts()}</select></div></div>`;
+  return `<div class="card"><h3>إضافة جديدة</h3>${seg}${f}<label>التاريخ</label><input id="date" type="date" value="${today()}"><label>ملاحظة</label><input id="note"><button class="btn" id="saveBtn">حفظ</button></div>`}
+
+function recs(){
+  const sec=(t,arr,line)=>`<div class="card"><h3>${t} (${arr.length})</h3>${arr.length?arr.map(x=>`<div class="li"><div>${line(x)}</div><button class="btn red" data-del="${x.id}">حذف</button></div>`).join(''):'<div class="sub">لا يوجد</div>'}</div>`;
+  return sec('المدخرات',S.sav,x=>x.kind==='عملة'?`<b>${num(x.amt)} ${esc(x.cur)}</b><small>${esc(x.note||'')} ${esc(x.date||'')}</small>`:`<b>${esc(x.metal)} عيار ${esc(x.karat)} — ${num(x.grams)} غ</b><small>≈ ${fmt(savUSD(x))} ${esc(x.note||'')}</small>`)
+   +sec('الاستثمارات',S.inv,x=>`<b>${esc(x.name)}</b><small>${num(x.amt)} ${esc(x.cur)} · عائد ${esc(x.ret||0)}%</small>`)
+   +sec('المصروفات',S.exp,x=>`<b>${esc(x.cat)} — ${num(x.amt)} ${esc(x.cur)}</b><small>${esc(x.freq)} ${esc(x.note||'')} ${esc(x.date||'')}</small>`)}
+
+function sett(){
+  return `<div class="card"><h3>الأسعار والعملات</h3><div class="sub">تُجلب الأسعار تلقائيًا (الذهب والفضة من gold-api.com، والعملات من open.er-api.com). سعر الصرف = كم وحدة من العملة لكل دولار. علّم «يدوي» على أي سعر تريد تثبيته (مثل الليرة السورية بسعر السوق).</div>
+  <button class="btn alt" style="margin:0 0 6px" id="upd">تحديث الأسعار الآن</button><div class="sub">${esc(pstat)}${S.upd?' آخر تحديث: '+esc(S.upd):''}</div>
+  <div class="row"><div><label>أونصة الذهب (دولار) <input type="checkbox" data-man="gold" ${S.man.gold?'checked':''} style="width:auto"> يدوي</label><input id="gold" type="number" step="any" value="${+S.gold||''}"></div><div><label>أونصة الفضة (دولار) <input type="checkbox" data-man="silver" ${S.man.silver?'checked':''} style="width:auto"> يدوي</label><input id="silver" type="number" step="any" value="${+S.silver||''}"></div></div>
+  ${Object.keys(S.rates).filter(c=>c!=='USD').map(c=>`<label>${esc(c)} لكل 1 دولار <input type="checkbox" data-man="${esc(c)}" ${S.man[c]?'checked':''} style="width:auto"> يدوي</label><input data-rate="${esc(c)}" type="number" step="any" value="${+S.rates[c]||''}">`).join('')}
+  <div class="row"><div><label>إضافة عملة (رمز)</label><input id="newcur" placeholder="JOD" maxlength="5"></div><div><label>&nbsp;</label><button class="btn alt" style="margin:0;width:100%" id="addCur">إضافة</button></div></div>
+  <label>عملة العرض في اللوحة</label><select id="disp">${curOpts().replace(`<option>${S.disp}</option>`,`<option selected>${S.disp}</option>`)}</select>
+  <button class="btn" id="saveSet">حفظ الأسعار</button></div>
+  <div class="card"><h3>مزامنة تلقائية مع Google Sheets</h3><div class="sub">الصق رابط تطبيق الويب (Apps Script) وكلمة السر نفسها الموجودة في السكربت. بعدها تُرفع كل تعديلاتك تلقائيًا وتُجلب عند فتح التطبيق.</div>
+  <label>رابط تطبيق الويب</label><input id="syncUrl" dir="ltr" placeholder="https://script.google.com/macros/s/.../exec" value="${esc(S.sync.url)}">
+  <label>كلمة السر</label><input id="syncTok" type="password" dir="ltr" value="${esc(S.sync.token)}">
+  <button class="btn" id="saveSync">حفظ وربط</button> <button class="btn alt" id="syncNow">مزامنة الآن</button><div class="sub" style="margin-top:8px">${esc(sstat||(S.sync.url?'مفعّلة':'غير مفعّلة'))}</div></div>
+  <div class="card"><h3>ملف إكسل (Google Drive)</h3><div class="sub">صدّر بياناتك إلى ملف .xlsx ثم ارفعه إلى Drive في حسابك. لاستعادتها أو تحديثها: نزّل الملف من Drive واستورده هنا.</div>
+  <button class="btn" id="exp">تصدير إلى Excel</button> <label class="btn alt" style="display:inline-block;cursor:pointer">استيراد من Excel<input id="imp" type="file" accept=".xlsx,.xls" hidden></label></div>`}
+
+function render(){
+  const t={dash:['اللوحة الرئيسية','ملخص ثروتك وعوائدك ومصاريفك',dash],add:['إضافة','مدخرات واستثمارات ومصروفات',add],recs:['السجلات','راجع أو احذف',recs],set:['الإعدادات','الأسعار وملف Excel',sett]}[tab];
+  $('#app').innerHTML=`<h1>محفظتي المالية</h1><div class="sub">${t[0]} — ${t[1]}${S.upd?' · أسعار: '+esc(S.upd):''}</div>${toast?`<div class="warn">${esc(toast)}</div>`:''}${t[2]()}`;
+  $('#nav').innerHTML=[['dash','الرئيسية'],['add','إضافة'],['recs','السجلات'],['set','الإعدادات']].map(n=>`<button data-tab="${n[0]}" class="${tab===n[0]?'on':''}">${n[1]}</button>`).join('');
+  toast='';
+}
+const v=id=>($('#'+id)||{}).value;
+document.addEventListener('change',e=>{
+  if(e.target.id==='metal'){const k=$('#karat');k.innerHTML=opt(e.target.value==='ذهب'?KARATS:SILV,e.target.value==='ذهب'?21:999)}
+  if(e.target.id==='imp')doImport(e.target.files[0]);
+  if(e.target.dataset.man){S.man[e.target.dataset.man]=e.target.checked;save()}
+});
+document.addEventListener('click',async e=>{
+  const b=e.target.closest('button');if(!b)return;const d=b.dataset;
+  if(d.tab){tab=d.tab;render();return}
+  if(d.sec){addSec=d.sec;render();return}
+  if(d.kind){savKind=d.kind;render();return}
+  if(d.del){['sav','inv','exp'].forEach(k=>S[k]=S[k].filter(x=>x.id!==d.del));save();render();return}
+  if(b.id==='saveBtn'){
+    const amt=+v('amt'),base={id:uid(),date:v('date')||today(),note:v('note')};
+    if(addSec==='sav'){
+      if(savKind==='عملة'){if(!(amt>0))return alert('أدخل المبلغ');S.sav.push({...base,kind:'عملة',cur:v('cur'),amt})}
+      else{const g=+v('grams');if(!(g>0))return alert('أدخل الوزن');S.sav.push({...base,kind:'معدن',metal:v('metal'),karat:+v('karat'),grams:g})}
+    }else if(addSec==='inv'){if(!(amt>0)||!v('name'))return alert('أدخل الاسم والمبلغ');S.inv.push({...base,name:v('name'),amt,cur:v('cur'),ret:+v('ret')||0})}
+    else{if(!(amt>0))return alert('أدخل المبلغ');S.exp.push({...base,cat:v('cat'),amt,cur:v('cur'),freq:v('freq')})}
+    save();toast='تمت الإضافة ✓';render();return}
+  if(b.id==='saveSet'){
+    S.gold=+v('gold')||0;S.silver=+v('silver')||0;S.disp=v('disp');
+    document.querySelectorAll('[data-rate]').forEach(i=>S.rates[i.dataset.rate]=+i.value||0);
+    save();toast='تم حفظ الأسعار ✓';render();return}
+  if(b.id==='addCur'){const c=(v('newcur')||'').trim().toUpperCase().replace(/[^A-Z]/g,'');if(c&&!(c in S.rates)){S.rates[c]=0;save()}render();return}
+  if(b.id==='saveSync'){S.sync={url:v('syncUrl').trim(),token:v('syncTok').trim()};saveLocal();sstat='جارٍ الاتصال...';render();pull();return}
+  if(b.id==='syncNow'){sstat='جارٍ المزامنة...';render();pull();return}
+  if(b.id==='upd'){pstat='جارٍ التحديث...';render();fetchPrices();return}
+  if(b.id==='exp')doExport();
+});
+async function doExport(){
+  try{
+    const wb=XLSX.utils.book_new();
+    const mk=(rows,cols)=>XLSX.utils.json_to_sheet(rows.map(r=>Object.fromEntries(cols.map(c=>[c[1],r[c[0]]??''])))),
+    sh=(n,rows,cols)=>XLSX.utils.book_append_sheet(wb,mk(rows,cols),n);
+    sh('المدخرات',S.sav,SAV);sh('الاستثمارات',S.inv,INV);sh('المصروفات',S.exp,EXP);
+    const st=[{key:'gold',value:S.gold},{key:'silver',value:S.silver},{key:'disp',value:S.disp},...Object.entries(S.rates).map(([k,x])=>({key:'rate_'+k,value:x}))];
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(st),'الإعدادات');
+    const data=XLSX.write(wb,{type:'array',bookType:'xlsx'});
+    const dl=(typeof claude!=='undefined')?await claude.use('downloads'):null;
+    if(!dl){XLSX.writeFile(wb,'my-finance.xlsx');return}
+    await dl.save({filename:'my-finance.xlsx',data:new Uint8Array(data)});
+  }catch(err){if(!err||err.code!=='declined')alert('تعذّر التصدير')}
+}
+function doImport(f){
+  if(!f)return;const r=new FileReader();
+  r.onload=()=>{try{
+    const wb=XLSX.read(r.result,{type:'array'});
+    const rd=(n,cols)=>XLSX.utils.sheet_to_json(wb.Sheets[n]||{},{defval:''}).map(o=>{const x={};cols.forEach(c=>{x[c[0]]=o[c[1]]??''});x.id=x.id||uid();
+      ['amt','grams','karat','ret'].forEach(k=>{if(k in x&&x[k]!=='')x[k]=+x[k]});return x});
+    const n=def();n.sav=rd('المدخرات',SAV);n.inv=rd('الاستثمارات',INV);n.exp=rd('المصروفات',EXP);
+    XLSX.utils.sheet_to_json(wb.Sheets['الإعدادات']||{}).forEach(o=>{
+      if(o.key==='gold')n.gold=+o.value||0;else if(o.key==='silver')n.silver=+o.value||0;
+      else if(o.key==='disp')n.disp=String(o.value||'USD');else if(String(o.key).startsWith('rate_'))n.rates[o.key.slice(5)]=+o.value||0});
+    n.sync=S.sync;S=n;save();toast='تم الاستيراد ✓';tab='dash';render();
+  }catch(err){alert('الملف غير صالح')}};
+  r.readAsArrayBuffer(f);
+}
+async function getJ(u){const c=new AbortController(),t=setTimeout(()=>c.abort(),10000);try{const r=await fetch(u,{signal:c.signal});if(!r.ok)throw 0;return await r.json()}finally{clearTimeout(t)}}
+async function fetchPrices(){
+  let ok=0;const bad=[];
+  try{const [g,s]=await Promise.all([getJ('https://api.gold-api.com/price/XAU'),getJ('https://api.gold-api.com/price/XAG')]);
+    if(!S.man.gold&&g.price>0){S.gold=g.price;ok++}if(!S.man.silver&&s.price>0){S.silver=s.price;ok++}}catch(e){bad.push('المعادن')}
+  try{let rt;try{rt=(await getJ('https://open.er-api.com/v6/latest/USD')).rates}catch(e){
+      const j=await getJ('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json');rt={};Object.entries(j.usd).forEach(([k,x])=>rt[k.toUpperCase()]=x)}
+    Object.keys(S.rates).forEach(c=>{if(c!=='USD'&&!S.man[c]&&rt[c]>0){S.rates[c]=rt[c];ok++}})}catch(e){bad.push('العملات')}
+  if(ok){S.upd=new Date().toLocaleString('en-GB');save()}
+  pstat=bad.length?('تعذّر جلب: '+bad.join('، ')+(ok?'':' — إن كنت تفتح الصفحة داخل claude.ai فالاتصال الخارجي محجوب، افتح النسخة المحمّلة أو أدخل الأسعار يدويًا.')+' '):'تم التحديث ✓ ';
+  if(tab==='dash'||tab==='set')render();
+}
+const SY=()=>S.sync&&S.sync.url&&S.sync.token;
+const payload=()=>({ts:S.ts,sav:S.sav,inv:S.inv,exp:S.exp,settings:{gold:S.gold,silver:S.silver,disp:S.disp,upd:S.upd,man:S.man,rates:S.rates}});
+const bad=m=>{sstat=m;if(tab==='set')render()};
+async function push(){
+  if(!SY())return;
+  try{const r=await fetch(S.sync.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({token:S.sync.token,data:payload()})});
+    const j=await r.json();bad(j.ok?'تمت المزامنة ✓ '+new Date().toLocaleTimeString('en-GB'):'رفض الخادم: '+(j.error||''))}
+  catch(e){bad('تعذّر الاتصال بـ Google. تحقق من الرابط، ولاحظ أن الصفحة داخل claude.ai تحجب الاتصال الخارجي.')}
+}
+async function pull(){
+  if(!SY())return;
+  try{const r=await fetch(S.sync.url+'?token='+encodeURIComponent(S.sync.token));const j=await r.json();
+    if(j.error){bad('رفض الخادم: '+j.error);return}
+    const rt=+j.ts||0;
+    if(rt>(S.ts||0)){
+      const nm=['amt','grams','karat','ret'],fix=a=>(a||[]).map(x=>{nm.forEach(k=>{if(k in x&&x[k]!=='')x[k]=+x[k]});return x});
+      const st=j.settings||{};
+      S.sav=fix(j.sav);S.inv=fix(j.inv);S.exp=fix(j.exp);
+      S.gold=+st.gold||0;S.silver=+st.silver||0;if(st.disp)S.disp=st.disp;S.man=st.man||{};S.upd=st.upd||'';
+      S.rates=Object.assign({USD:1},st.rates);S.ts=rt;saveLocal();
+      sstat='تم جلب البيانات من Google Sheets ✓';if(tab!=='add')render();
+    }else if((S.ts||0)>rt){await push();return}
+    else bad('متزامن ✓ '+new Date().toLocaleTimeString('en-GB'));
+  }catch(e){bad('تعذّر الاتصال بـ Google. تحقق من الرابط، ولاحظ أن الصفحة داخل claude.ai تحجب الاتصال الخارجي.')}
+  if(tab==='set')render();
+}
+render();
+(async()=>{await pull();await fetchPrices()})();
+</script>
+</body>
+</html>
