@@ -38,7 +38,7 @@ input,select,textarea{width:100%;font:inherit;padding:9px 10px;border:1px solid 
 .li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--br)}
 .li:last-child{border:0}.li small{color:var(--mut);display:block}
 .warn{background:#fff3d6;color:#6b4a00;border-radius:12px;padding:10px;font-size:13px;margin-bottom:12px}
-.tw{overflow-x:auto}
+.tw{overflow-x:auto}.sm{padding:3px 9px!important;margin:0!important;font-size:13px!important}.acts{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
 h3{margin:0 0 6px;font-size:15px}
 </style>
 </head>
@@ -52,12 +52,14 @@ const OZ=31.1035, KEY='fin-app-v1';
 const KARATS=[24,22,21,18,14,10], SILV=[999,925,900];
 const CATS=['سكن','طعام','مواصلات','فواتير','صحة','تعليم','ترفيه','ملابس','أسرة','أخرى'];
 const FREQ=['شهري','سنوي','مرة واحدة'];
-const SAV=[['id','المعرف'],['kind','النوع'],['cur','العملة'],['amt','المبلغ'],['metal','المعدن'],['karat','العيار'],['grams','الوزن (غرام)'],['note','ملاحظة'],['date','التاريخ']];
+const SAV=[['id','المعرف'],['kind','النوع'],['cur','العملة'],['amt','المبلغ'],['metal','المعدن'],['karat','العيار'],['grams','الوزن (غرام)'],['note','ملاحظة'],['sold','مباع'],['soldAmt','مبلغ البيع'],['soldCur','عملة البيع'],['soldDate','تاريخ البيع'],['date','التاريخ']];
 const INV=[['id','المعرف'],['name','الاستثمار'],['amt','المبلغ'],['cur','العملة'],['ret','العائد السنوي %'],['note','ملاحظة'],['date','التاريخ']];
 const EXP=[['id','المعرف'],['cat','الفئة'],['amt','المبلغ'],['cur','العملة'],['freq','التكرار'],['note','ملاحظة'],['date','التاريخ']];
 const def=()=>({rates:{USD:1,TRY:0,SYP:0,EUR:0,SAR:0},gold:0,silver:0,disp:'USD',man:{},upd:'',sync:{url:'',token:''},ts:0,sav:[],inv:[],exp:[]});
 let pstat='',sstat='';
-let S=def(), tab='dash', addSec='sav', savKind='عملة', toast='';
+let S=def();
+let tab='dash', addSec='sav', savKind='عملة', toast='';
+let fA='all',fE='all',rf='all',rfe='all',editId=null,sellId=null;
 try{const r=localStorage.getItem(KEY);if(r)S=Object.assign(def(),JSON.parse(r))}catch(e){}
 const saveLocal=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 let pushT;const save=()=>{S.ts=Date.now();saveLocal();clearTimeout(pushT);pushT=setTimeout(push,1500)};
@@ -82,33 +84,46 @@ function expAnnual(x){const u=toUSD(x.amt,x.cur);
   return (x.date||'').slice(0,4)===today().slice(0,4)?u:0}
 const sum=(a,f)=>a.reduce((t,x)=>t+f(x),0);
 
+const act=()=>S.sav.filter(x=>!x.sold);
+const typeOf=x=>x.kind==='عملة'?'cash':x.metal==='ذهب'?'gold':'silver';
+const TYPES=[['all','الكل'],['cash','نقد وعملات'],['gold','ذهب'],['silver','فضة'],['inv','استثمارات']];
+const sopt=(pairs,sel)=>pairs.map(p=>`<option value="${esc(p[0])}" ${p[0]===sel?'selected':''}>${esc(p[1])}</option>`).join('');
 function missing(){
-  const cs=new Set([...S.sav.filter(x=>x.kind==='عملة').map(x=>x.cur),...S.inv.map(x=>x.cur),...S.exp.map(x=>x.cur)]);
+  const A=act();
+  const cs=new Set([...A.filter(x=>x.kind==='عملة').map(x=>x.cur),...S.inv.map(x=>x.cur),...S.exp.map(x=>x.cur)]);
   const m=[...cs].filter(c=>c!=='USD'&&!(+S.rates[c]>0)).map(c=>'سعر صرف '+c);
-  if(S.sav.some(x=>x.metal==='ذهب')&&!(+S.gold>0))m.push('سعر الذهب');
-  if(S.sav.some(x=>x.metal==='فضة')&&!(+S.silver>0))m.push('سعر الفضة');
+  if(A.some(x=>x.metal==='ذهب')&&!(+S.gold>0))m.push('سعر الذهب');
+  if(A.some(x=>x.metal==='فضة')&&!(+S.silver>0))m.push('سعر الفضة');
   if(S.disp!=='USD'&&!(+S.rates[S.disp]>0))m.push('سعر عملة العرض '+S.disp);
   return m}
 
 function dash(){
-  const cash=sum(S.sav.filter(x=>x.kind==='عملة'),savUSD);
-  const gold=sum(S.sav.filter(x=>x.metal==='ذهب'),savUSD);
-  const silv=sum(S.sav.filter(x=>x.metal==='فضة'),savUSD);
-  const inv=sum(S.inv,invUSD), tot=cash+gold+silv+inv;
-  const ya=sum(S.inv,x=>invUSD(x)*(+x.ret||0)/100), ym=ya/12;
-  const em=sum(S.exp,expMonthly), ea=sum(S.exp,expAnnual);
+  const A=act(),by=t=>A.filter(x=>typeOf(x)===t);
+  const cash=sum(by('cash'),savUSD),gold=sum(by('gold'),savUSD),silv=sum(by('silver'),savUSD);
+  const inv=sum(S.inv,invUSD),tot=cash+gold+silv+inv;
+  const val={all:tot,cash,gold,silver:silv,inv};
+  const ya=sum(S.inv,x=>invUSD(x)*(+x.ret||0)/100),ym=ya/12;
+  const EX=fE==='all'?S.exp:S.exp.filter(x=>x.cat===fE);
+  const em=sum(EX,expMonthly),ea=sum(EX,expAnnual),emAll=sum(S.exp,expMonthly);
   const parts=[['نقد وعملات',cash,'var(--pri)'],['ذهب',gold,'var(--gold)'],['فضة',silv,'#8a97a0'],['استثمارات',inv,'var(--bl)']];
-  const gg=sum(S.sav.filter(x=>x.metal==='ذهب'),x=>(+x.grams||0)*(+x.karat/24));
+  const gg=sum(by('gold'),x=>(+x.grams||0)*(+x.karat/24));
   const bycat={};S.exp.forEach(x=>{bycat[x.cat]=(bycat[x.cat]||0)+expAnnual(x)});
   const cats=Object.entries(bycat).filter(e=>e[1]>0).sort((a,b)=>b[1]-a[1]);
-  const net=ym-em, cover=em>0?tot/em:0;
-  const mi=missing();
+  const net=ym-em,cover=emAll>0?tot/emAll:0;
+  const mi=missing(),lbl=TYPES.find(t=>t[0]===fA)[1];
+  let det='';
+  if(fA!=='all'){
+    const rows=fA==='inv'?S.inv.map(x=>[esc(x.name),esc(num(x.amt)+' '+x.cur),invUSD(x)]):by(fA).map(x=>x.kind==='عملة'?[esc(num(x.amt)+' '+x.cur),esc(x.note||x.date||''),savUSD(x)]:[esc(x.metal+' عيار '+x.karat+' — '+num(x.grams)+' غ'),esc(x.note||x.date||''),savUSD(x)]);
+    det=`<div class="card"><h3>تفاصيل: ${esc(lbl)}</h3>${rows.length?rows.map(r=>`<div class="li"><div><b>${r[0]}</b><small>${r[1]}</small></div><b>${fmt(r[2])}</b></div>`).join(''):'<div class="sub">لا يوجد</div>'}</div>`}
   return `${mi.length?`<div class="warn">أدخل من تبويب «الإعدادات»: ${esc(mi.join('، '))} — حتى تُحسب القيم بدقة.</div>`:''}
-  <div class="card hero"><small>صافي الثروة الإجمالي</small><div class="big">${fmt(tot)}</div>
+  <div class="seg">${TYPES.map(t=>`<button data-fa="${t[0]}" class="${fA===t[0]?'on':''}">${t[1]}</button>`).join('')}</div>
+  <div class="card hero"><small>${fA==='all'?'صافي الثروة الإجمالي':'إجمالي '+esc(lbl)}</small><div class="big">${fmt(val[fA])}</div>
   <small>ذهب صافٍ (عيار 24 مكافئ): ${num(gg)} غرام</small></div>
+  ${det}
   <div class="card"><h3>توزيع الأصول</h3>
   <div class="bar">${parts.map(p=>tot>0&&p[1]>0?`<div style="width:${p[1]/tot*100}%;background:${p[2]}"></div>`:'').join('')}</div>
   <div class="lg">${parts.map(p=>`<span><i style="background:${p[2]}"></i>${p[0]}: ${fmt(p[1])}${tot>0?' ('+Math.round(p[1]/tot*100)+'%)':''}</span>`).join('')}</div></div>
+  <div class="card"><label style="margin:0 0 4px">فلتر المصروفات حسب الفئة</label><select id="fE">${sopt([['all','كل الفئات'],...CATS.map(c=>[c,c])],fE)}</select></div>
   <div class="grid">
   <div class="kpi"><small>المصروف الشهري</small><b class="neg">${fmt(em)}</b></div>
   <div class="kpi"><small>المصروف السنوي</small><b class="neg">${fmt(ea)}</b></div>
@@ -117,29 +132,41 @@ function dash(){
   <div class="kpi"><small>صافي شهري (عائد − مصروف)</small><b class="${net>=0?'pos':'neg'}">${fmt(net)}</b></div>
   <div class="kpi"><small>تغطية المصاريف بالأصول</small><b>${cover?num(cover)+' شهر':'—'}</b></div>
   <div class="kpi"><small>عائد الاستثمار المتوقع</small><b>${inv>0?num(ya/inv*100)+'%':'—'}</b></div>
-  <div class="kpi"><small>عدد السجلات</small><b>${S.sav.length+S.inv.length+S.exp.length}</b></div></div>
+  <div class="kpi"><small>عدد السجلات</small><b>${A.length+S.inv.length+S.exp.length}</b></div></div>
   <div class="card" style="margin-top:12px"><h3>المصروف السنوي حسب الفئة</h3>
   ${cats.length?cats.map(c=>`<div class="li"><span>${esc(c[0])}</span><span>${fmt(c[1])}</span></div>`).join(''):'<div class="sub">لا مصروفات بعد</div>'}</div>`}
 
 const opt=(arr,v)=>arr.map(a=>`<option ${String(a)===String(v)?'selected':''}>${esc(a)}</option>`).join('');
-const curOpts=()=>opt(Object.keys(S.rates));
+const curOpts=s=>opt(Object.keys(S.rates),s);
 function add(){
-  const seg=`<div class="seg">${[['sav','مدخرات'],['inv','استثمار'],['exp','مصروف']].map(s=>`<button data-sec="${s[0]}" class="${addSec===s[0]?'on':''}">${s[1]}</button>`).join('')}</div>`;
+  const E=[...S.sav,...S.inv,...S.exp].find(x=>x.id===editId)||{};
+  const seg=editId?'':`<div class="seg">${[['sav','مدخرات'],['inv','استثمار'],['exp','مصروف']].map(s=>`<button data-sec="${s[0]}" class="${addSec===s[0]?'on':''}">${s[1]}</button>`).join('')}</div>`;
   let f='';
   if(addSec==='sav'){
-    f=`<div class="seg">${['عملة','معدن'].map(k=>`<button data-kind="${k}" class="${savKind===k?'on':''}">${k}</button>`).join('')}</div>`;
-    if(savKind==='عملة')f+=`<div class="row"><div><label>العملة</label><select id="cur">${curOpts()}</select></div><div><label>المبلغ</label><input id="amt" type="number" step="any" inputmode="decimal"></div></div>`;
-    else f+=`<div class="row"><div><label>المعدن</label><select id="metal"><option>ذهب</option><option>فضة</option></select></div><div><label>العيار</label><select id="karat">${opt(KARATS,21)}</select></div></div><label>الوزن بالغرام</label><input id="grams" type="number" step="any" inputmode="decimal"><div class="sub" id="khint">للفضة اختر العيار من القائمة: 999 / 925 / 900</div>`;
+    f=editId?'':`<div class="seg">${['عملة','معدن'].map(k=>`<button data-kind="${k}" class="${savKind===k?'on':''}">${k}</button>`).join('')}</div>`;
+    if(savKind==='عملة')f+=`<div class="row"><div><label>العملة</label><select id="cur">${curOpts(E.cur)}</select></div><div><label>المبلغ</label><input id="amt" type="number" step="any" inputmode="decimal" value="${E.amt??''}"></div></div>`;
+    else f+=`<div class="row"><div><label>المعدن</label><select id="metal">${opt(['ذهب','فضة'],E.metal)}</select></div><div><label>العيار</label><select id="karat">${opt(E.metal==='فضة'?SILV:KARATS,E.karat||21)}</select></div></div><label>الوزن بالغرام</label><input id="grams" type="number" step="any" inputmode="decimal" value="${E.grams??''}"><div class="sub">للفضة اختر العيار من القائمة: 999 / 925 / 900</div>`;
   }
-  if(addSec==='inv')f=`<label>اسم الاستثمار</label><input id="name" placeholder="مثال: عقار، أسهم، مشروع"><div class="row"><div><label>المبلغ</label><input id="amt" type="number" step="any" inputmode="decimal"></div><div><label>العملة</label><select id="cur">${curOpts()}</select></div></div><label>العائد السنوي المتوقع %</label><input id="ret" type="number" step="any" inputmode="decimal">`;
-  if(addSec==='exp')f=`<div class="row"><div><label>الفئة</label><select id="cat">${opt(CATS)}</select></div><div><label>التكرار</label><select id="freq">${opt(FREQ)}</select></div></div><div class="row"><div><label>المبلغ</label><input id="amt" type="number" step="any" inputmode="decimal"></div><div><label>العملة</label><select id="cur">${curOpts()}</select></div></div>`;
-  return `<div class="card"><h3>إضافة جديدة</h3>${seg}${f}<label>التاريخ</label><input id="date" type="date" value="${today()}"><label>ملاحظة</label><input id="note"><button class="btn" id="saveBtn">حفظ</button></div>`}
+  if(addSec==='inv')f=`<label>اسم الاستثمار</label><input id="name" value="${esc(E.name||'')}" placeholder="مثال: عقار، أسهم، مشروع"><div class="row"><div><label>المبلغ</label><input id="amt" type="number" step="any" inputmode="decimal" value="${E.amt??''}"></div><div><label>العملة</label><select id="cur">${curOpts(E.cur)}</select></div></div><label>العائد السنوي المتوقع %</label><input id="ret" type="number" step="any" inputmode="decimal" value="${E.ret??''}">`;
+  if(addSec==='exp')f=`<div class="row"><div><label>الفئة</label><select id="cat">${opt(CATS,E.cat)}</select></div><div><label>التكرار</label><select id="freq">${opt(FREQ,E.freq)}</select></div></div><div class="row"><div><label>المبلغ</label><input id="amt" type="number" step="any" inputmode="decimal" value="${E.amt??''}"></div><div><label>العملة</label><select id="cur">${curOpts(E.cur)}</select></div></div>`;
+  return `<div class="card"><h3>${editId?'تعديل سجل':'إضافة جديدة'}</h3>${seg}${f}<label>التاريخ</label><input id="date" type="date" value="${esc(E.date||today())}"><label>ملاحظة</label><input id="note" value="${esc(E.note||'')}"><button class="btn" id="saveBtn">${editId?'حفظ التعديل':'حفظ'}</button>${editId?' <button class="btn alt" id="cancelEdit">إلغاء</button>':''}</div>`}
 
 function recs(){
-  const sec=(t,arr,line)=>`<div class="card"><h3>${t} (${arr.length})</h3>${arr.length?arr.map(x=>`<div class="li"><div>${line(x)}</div><button class="btn red" data-del="${x.id}">حذف</button></div>`).join(''):'<div class="sub">لا يوجد</div>'}</div>`;
-  return sec('المدخرات',S.sav,x=>x.kind==='عملة'?`<b>${num(x.amt)} ${esc(x.cur)}</b><small>${esc(x.note||'')} ${esc(x.date||'')}</small>`:`<b>${esc(x.metal)} عيار ${esc(x.karat)} — ${num(x.grams)} غ</b><small>≈ ${fmt(savUSD(x))} ${esc(x.note||'')}</small>`)
-   +sec('الاستثمارات',S.inv,x=>`<b>${esc(x.name)}</b><small>${num(x.amt)} ${esc(x.cur)} · عائد ${esc(x.ret||0)}%</small>`)
-   +sec('المصروفات',S.exp,x=>`<b>${esc(x.cat)} — ${num(x.amt)} ${esc(x.cur)}</b><small>${esc(x.freq)} ${esc(x.note||'')} ${esc(x.date||'')}</small>`)}
+  const F=[['all','الكل'],['cash','نقد وعملات'],['gold','ذهب'],['silver','فضة'],['inv','استثمارات'],['exp','مصروفات'],['sold','معادن مباعة']];
+  const savShow=['all','cash','gold','silver'].includes(rf), A=act().filter(x=>rf==='all'||typeOf(x)===rf);
+  const btns=(x,sell)=>`<div class="acts"><button class="btn alt sm" data-edit="${x.id}">تعديل</button>${sell?`<button class="btn alt sm" data-sell="${x.id}">بيع</button>`:''}<button class="btn red" data-del="${x.id}">حذف</button></div>`;
+  const sec=(t,arr,line,sell)=>`<div class="card"><h3>${t} (${arr.length})</h3>${arr.length?arr.map(x=>`<div class="li"><div>${line(x)}</div>${btns(x,sell&&x.kind==='معدن')}</div>`).join(''):'<div class="sub">لا يوجد</div>'}</div>`;
+  let h=`<div class="card"><label style="margin:0 0 4px">الفئة</label><select id="rf">${sopt(F,rf)}</select>${rf==='all'||rf==='exp'?`<label>فئة المصروف</label><select id="rfe">${sopt([['all','كل الفئات'],...CATS.map(c=>[c,c])],rfe)}</select>`:''}</div>`;
+  if(sellId){const x=S.sav.find(i=>i.id===sellId);if(x)h+=`<div class="card"><h3>بيع من المدخرات: ${esc(x.metal)} عيار ${esc(x.karat)}</h3><div class="sub">المتاح ${num(x.grams)} غ. عند البيع يخرج الوزن المباع من الإجمالي.</div>
+  <div class="row"><div><label>الوزن المباع (غ)</label><input id="sg" type="number" step="any" value="${x.grams}"></div><div><label>تاريخ البيع</label><input id="sd" type="date" value="${today()}"></div></div>
+  <div class="row"><div><label>مبلغ البيع (اختياري)</label><input id="sa" type="number" step="any"></div><div><label>العملة</label><select id="sc">${curOpts('USD')}</select></div></div>
+  <label><input id="sadd" type="checkbox" checked style="width:auto"> أضف المبلغ إلى مدخراتي النقدية</label>
+  <button class="btn" id="confirmSell">تأكيد البيع</button> <button class="btn alt" id="cancelSell">إلغاء</button></div>`}
+  if(savShow)h+=sec('المدخرات',A,x=>x.kind==='عملة'?`<b>${num(x.amt)} ${esc(x.cur)}</b><small>${esc(x.note||'')} ${esc(x.date||'')}</small>`:`<b>${esc(x.metal)} عيار ${esc(x.karat)} — ${num(x.grams)} غ</b><small>≈ ${fmt(savUSD(x))} ${esc(x.note||'')}</small>`,true);
+  if(rf==='all'||rf==='inv')h+=sec('الاستثمارات',S.inv,x=>`<b>${esc(x.name)}</b><small>${num(x.amt)} ${esc(x.cur)} · عائد ${esc(x.ret||0)}%</small>`);
+  if(rf==='all'||rf==='exp')h+=sec('المصروفات',S.exp.filter(x=>rfe==='all'||x.cat===rfe),x=>`<b>${esc(x.cat)} — ${num(x.amt)} ${esc(x.cur)}</b><small>${esc(x.freq)} ${esc(x.note||'')} ${esc(x.date||'')}</small>`);
+  if(rf==='all'||rf==='sold'){const so=S.sav.filter(x=>x.sold);h+=`<div class="card"><h3>معادن مباعة (${so.length})</h3>${so.length?so.map(x=>`<div class="li"><div><b>${esc(x.metal)} عيار ${esc(x.karat)} — ${num(x.grams)} غ</b><small>بيعت ${x.soldAmt?'بـ '+num(x.soldAmt)+' '+esc(x.soldCur):''} ${esc(x.soldDate||'')} — خارج الإجمالي</small></div><div class="acts"><button class="btn alt sm" data-undo="${x.id}">تراجع</button><button class="btn red" data-del="${x.id}">حذف</button></div></div>`).join(''):'<div class="sub">لا يوجد</div>'}</div>`}
+  return h}
 
 function sett(){
   return `<div class="card"><h3>الأسعار والعملات</h3><div class="sub">تُجلب الأسعار تلقائيًا (الذهب والفضة من gold-api.com، والعملات من open.er-api.com). سعر الصرف = كم وحدة من العملة لكل دولار. علّم «يدوي» على أي سعر تريد تثبيته (مثل الليرة السورية بسعر السوق).</div>
@@ -166,22 +193,42 @@ const v=id=>($('#'+id)||{}).value;
 document.addEventListener('change',e=>{
   if(e.target.id==='metal'){const k=$('#karat');k.innerHTML=opt(e.target.value==='ذهب'?KARATS:SILV,e.target.value==='ذهب'?21:999)}
   if(e.target.id==='imp')doImport(e.target.files[0]);
+  if(e.target.id==='fE'){fE=e.target.value;render()}
+  if(e.target.id==='rf'){rf=e.target.value;render()}
+  if(e.target.id==='rfe'){rfe=e.target.value;render()}
   if(e.target.dataset.man){S.man[e.target.dataset.man]=e.target.checked;save()}
 });
 document.addEventListener('click',async e=>{
   const b=e.target.closest('button');if(!b)return;const d=b.dataset;
-  if(d.tab){tab=d.tab;render();return}
+  if(d.tab){tab=d.tab;editId=null;sellId=null;render();return}
+  if(d.fa){fA=d.fa;render();return}
   if(d.sec){addSec=d.sec;render();return}
   if(d.kind){savKind=d.kind;render();return}
   if(d.del){['sav','inv','exp'].forEach(k=>S[k]=S[k].filter(x=>x.id!==d.del));save();render();return}
+  if(d.edit){const x=[...S.sav,...S.inv,...S.exp].find(i=>i.id===d.edit);editId=d.edit;addSec=S.sav.includes(x)?'sav':S.inv.includes(x)?'inv':'exp';if(addSec==='sav')savKind=x.kind;tab='add';render();return}
+  if(d.sell){sellId=d.sell;render();window.scrollTo(0,0);return}
+  if(d.undo){const x=S.sav.find(i=>i.id===d.undo);if(x){x.sold='';x.soldAmt='';x.soldCur='';x.soldDate=''}save();render();return}
+  if(b.id==='cancelEdit'){editId=null;tab='recs';render();return}
+  if(b.id==='cancelSell'){sellId=null;render();return}
+  if(b.id==='confirmSell'){
+    const x=S.sav.find(i=>i.id===sellId),g=+v('sg');
+    if(!x||!(g>0)||g>x.grams+1e-9)return alert('الوزن غير صحيح');
+    const amt=+v('sa')||0,cur=v('sc'),dt=v('sd')||today(),add=$('#sadd').checked;
+    const meta={sold:1,soldAmt:amt||'',soldCur:amt?cur:'',soldDate:dt};
+    if(g>=x.grams-1e-9)Object.assign(x,meta);
+    else{S.sav.push({...x,...meta,id:uid(),grams:g});x.grams=+(x.grams-g).toFixed(4)}
+    if(amt>0&&add)S.sav.push({id:uid(),kind:'عملة',cur,amt,date:dt,note:'من بيع '+x.metal+' عيار '+x.karat});
+    sellId=null;toast='تم البيع وخرج من الإجمالي ✓';save();render();return}
   if(b.id==='saveBtn'){
-    const amt=+v('amt'),base={id:uid(),date:v('date')||today(),note:v('note')};
-    if(addSec==='sav'){
-      if(savKind==='عملة'){if(!(amt>0))return alert('أدخل المبلغ');S.sav.push({...base,kind:'عملة',cur:v('cur'),amt})}
-      else{const g=+v('grams');if(!(g>0))return alert('أدخل الوزن');S.sav.push({...base,kind:'معدن',metal:v('metal'),karat:+v('karat'),grams:g})}
-    }else if(addSec==='inv'){if(!(amt>0)||!v('name'))return alert('أدخل الاسم والمبلغ');S.inv.push({...base,name:v('name'),amt,cur:v('cur'),ret:+v('ret')||0})}
-    else{if(!(amt>0))return alert('أدخل المبلغ');S.exp.push({...base,cat:v('cat'),amt,cur:v('cur'),freq:v('freq')})}
-    save();toast='تمت الإضافة ✓';render();return}
+    const amt=+v('amt'),base={date:v('date')||today(),note:v('note')};let rec,list;
+    if(addSec==='sav'){list='sav';
+      if(savKind==='عملة'){if(!(amt>0))return alert('أدخل المبلغ');rec={...base,kind:'عملة',cur:v('cur'),amt}}
+      else{const g=+v('grams');if(!(g>0))return alert('أدخل الوزن');rec={...base,kind:'معدن',metal:v('metal'),karat:+v('karat'),grams:g}}
+    }else if(addSec==='inv'){list='inv';if(!(amt>0)||!v('name'))return alert('أدخل الاسم والمبلغ');rec={...base,name:v('name'),amt,cur:v('cur'),ret:+v('ret')||0}}
+    else{list='exp';if(!(amt>0))return alert('أدخل المبلغ');rec={...base,cat:v('cat'),amt,cur:v('cur'),freq:v('freq')}}
+    if(editId){const i=S[list].findIndex(x=>x.id===editId);if(i>=0)S[list][i]={...S[list][i],...rec};editId=null;tab='recs';toast='تم حفظ التعديل ✓'}
+    else{S[list].push({id:uid(),...rec});toast='تمت الإضافة ✓'}
+    save();render();return}
   if(b.id==='saveSet'){
     S.gold=+v('gold')||0;S.silver=+v('silver')||0;S.disp=v('disp');
     document.querySelectorAll('[data-rate]').forEach(i=>S.rates[i.dataset.rate]=+i.value||0);
@@ -211,7 +258,7 @@ function doImport(f){
   r.onload=()=>{try{
     const wb=XLSX.read(r.result,{type:'array'});
     const rd=(n,cols)=>XLSX.utils.sheet_to_json(wb.Sheets[n]||{},{defval:''}).map(o=>{const x={};cols.forEach(c=>{x[c[0]]=o[c[1]]??''});x.id=x.id||uid();
-      ['amt','grams','karat','ret'].forEach(k=>{if(k in x&&x[k]!=='')x[k]=+x[k]});return x});
+      ['amt','grams','karat','ret','soldAmt'].forEach(k=>{if(k in x&&x[k]!=='')x[k]=+x[k]});return x});
     const n=def();n.sav=rd('المدخرات',SAV);n.inv=rd('الاستثمارات',INV);n.exp=rd('المصروفات',EXP);
     XLSX.utils.sheet_to_json(wb.Sheets['الإعدادات']||{}).forEach(o=>{
       if(o.key==='gold')n.gold=+o.value||0;else if(o.key==='silver')n.silver=+o.value||0;
@@ -247,7 +294,7 @@ async function pull(){
     if(j.error){bad('رفض الخادم: '+j.error);return}
     const rt=+j.ts||0;
     if(rt>(S.ts||0)){
-      const nm=['amt','grams','karat','ret'],fix=a=>(a||[]).map(x=>{nm.forEach(k=>{if(k in x&&x[k]!=='')x[k]=+x[k]});return x});
+      const nm=['amt','grams','karat','ret','soldAmt'],fix=a=>(a||[]).map(x=>{nm.forEach(k=>{if(k in x&&x[k]!=='')x[k]=+x[k]});return x});
       const st=j.settings||{};
       S.sav=fix(j.sav);S.inv=fix(j.inv);S.exp=fix(j.exp);
       S.gold=+st.gold||0;S.silver=+st.silver||0;if(st.disp)S.disp=st.disp;S.man=st.man||{};S.upd=st.upd||'';
