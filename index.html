@@ -280,7 +280,7 @@ document.addEventListener('click',async e=>{
     document.querySelectorAll('[data-rate]').forEach(i=>S.rates[i.dataset.rate]=+i.value||0);
     save();toast='تم حفظ الأسعار ✓';render();return}
   if(b.id==='addCur'){const c=(v('newcur')||'').trim().toUpperCase().replace(/[^A-Z]/g,'');if(c&&!(c in S.rates)){S.rates[c]=0;save()}render();return}
-  if(b.id==='saveSync'){S.sync={url:v('syncUrl').trim(),token:v('syncTok').trim()};saveLocal();sstat='جارٍ الاتصال...';render();pull();return}
+  if(b.id==='saveSync'){S.sync={url:v('syncUrl').trim(),token:v('syncTok').trim()};saveLocal();sstat='جارٍ الاتصال...';render();pull(true);return}
   if(b.id==='syncNow'){sstat='جارٍ المزامنة...';render();pull();return}
   if(b.id==='upd'){pstat='جارٍ التحديث...';render();fetchPrices();return}
   if(b.id==='exp')doExport();
@@ -329,26 +329,34 @@ const SY=()=>S.sync&&S.sync.url&&S.sync.token;
 const payload=()=>({ts:S.ts,sav:S.sav,inv:S.inv,exp:S.exp,debt:S.debt,settings:{gold:S.gold,silver:S.silver,disp:S.disp,upd:S.upd,man:S.man,rates:S.rates}});
 const bad=m=>{sstat=m;if(tab==='set')render()};
 async function push(){
-  if(!SY())return;
+  if(!SY()||!locHas())return;
   try{const r=await fetch(S.sync.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({token:S.sync.token,data:payload()})});
     const j=await r.json();bad(j.ok?'تمت المزامنة ✓ '+new Date().toLocaleTimeString('en-GB'):'رفض الخادم: '+(j.error||''))}
   catch(e){bad('تعذّر الاتصال بـ Google. تحقق من الرابط، ولاحظ أن الصفحة داخل claude.ai تحجب الاتصال الخارجي.')}
 }
-async function pull(){
+const remHas=j=>((j.sav||[]).length+(j.inv||[]).length+(j.exp||[]).length+(j.debt||[]).length)>0;
+const locHas=()=>(S.sav.length+S.inv.length+S.exp.length+(S.debt||[]).length)>0;
+function applyRemote(j){
+  const nm=['amt','grams','karat','ret','soldAmt','paid'],fix=a=>(a||[]).map(x=>{nm.forEach(k=>{if(k in x&&x[k]!=='')x[k]=+x[k]});return x});
+  const st=j.settings||{};
+  S.sav=fix(j.sav);S.inv=fix(j.inv);S.exp=fix(j.exp);S.debt=fix(j.debt);
+  S.gold=+st.gold||0;S.silver=+st.silver||0;if(st.disp)S.disp=st.disp;S.man=st.man||{};S.upd=st.upd||'';
+  S.rates=Object.assign({USD:1},st.rates);S.ts=+j.ts||Date.now();saveLocal();
+  sstat='تم جلب بياناتك من Google Sheets ✓';if(tab!=='add')render();
+}
+async function pull(first){
   if(!SY())return;
   try{const r=await fetch(S.sync.url+'?token='+encodeURIComponent(S.sync.token));const j=await r.json();
     if(j.error){bad('رفض الخادم: '+j.error);return}
     const rt=+j.ts||0;
-    if(rt>(S.ts||0)){
-      const nm=['amt','grams','karat','ret','soldAmt','paid'],fix=a=>(a||[]).map(x=>{nm.forEach(k=>{if(k in x&&x[k]!=='')x[k]=+x[k]});return x});
-      const st=j.settings||{};
-      S.sav=fix(j.sav);S.inv=fix(j.inv);S.exp=fix(j.exp);S.debt=fix(j.debt);
-      S.gold=+st.gold||0;S.silver=+st.silver||0;if(st.disp)S.disp=st.disp;S.man=st.man||{};S.upd=st.upd||'';
-      S.rates=Object.assign({USD:1},st.rates);S.ts=rt;saveLocal();
-      sstat='تم جلب البيانات من Google Sheets ✓';if(tab!=='add')render();
-    }else if((S.ts||0)>rt){await push();return}
-    else bad('متزامن ✓ '+new Date().toLocaleTimeString('en-GB'));
-  }catch(e){bad('تعذّر الاتصال بـ Google. تحقق من الرابط، ولاحظ أن الصفحة داخل claude.ai تحجب الاتصال الخارجي.')}
+    if(remHas(j)&&!locHas()){applyRemote(j);return}
+    if(first&&remHas(j)&&locHas()){
+      if(confirm('الجدول يحوي بيانات وهذا الجهاز يحوي بيانات أيضًا.\nموافق = اعتماد بيانات الجدول واستبدال بيانات هذا الجهاز.\nإلغاء = رفع بيانات هذا الجهاز مكان الجدول.')){applyRemote(j);return}
+      S.ts=Date.now();saveLocal();await push();return}
+    if(rt>(S.ts||0)){applyRemote(j);return}
+    if((S.ts||0)>rt){await push();return}
+    bad('متزامن ✓ '+new Date().toLocaleTimeString('en-GB'));
+  }catch(e){bad('تعذّر الاتصال بـ Google. تحقق من الرابط (يجب أن ينتهي بـ /exec)، ولاحظ أن الصفحة داخل claude.ai تحجب الاتصال الخارجي.')}
   if(tab==='set')render();
 }
 render();
