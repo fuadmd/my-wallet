@@ -215,7 +215,7 @@ function sett(){
   <div class="card"><h3>مزامنة تلقائية مع Google Sheets</h3><div class="sub">الصق رابط تطبيق الويب (Apps Script) وكلمة السر نفسها الموجودة في السكربت. بعدها تُرفع كل تعديلاتك تلقائيًا وتُجلب عند فتح التطبيق.</div>
   <label>رابط تطبيق الويب</label><input id="syncUrl" dir="ltr" placeholder="https://script.google.com/macros/s/.../exec" value="${esc(S.sync.url)}">
   <label>كلمة السر</label><input id="syncTok" type="password" dir="ltr" value="${esc(S.sync.token)}">
-  <button class="btn" id="saveSync">حفظ وربط</button> <button class="btn alt" id="syncNow">مزامنة الآن</button><div class="sub" style="margin-top:8px">${esc(sstat||(S.sync.url?'مفعّلة':'غير مفعّلة'))}</div></div>
+  <button class="btn" id="saveSync">حفظ وربط</button> <button class="btn alt" id="syncNow">مزامنة الآن</button> <button class="btn alt" id="pullForce">استبدال بيانات هذا الجهاز ببيانات الجدول</button><div class="sub" style="margin-top:8px">${esc(sstat||(S.sync.url?'مفعّلة':'غير مفعّلة'))}</div></div>
   <div class="card"><h3>ملف إكسل (Google Drive)</h3><div class="sub">صدّر بياناتك إلى ملف .xlsx ثم ارفعه إلى Drive في حسابك. لاستعادتها أو تحديثها: نزّل الملف من Drive واستورده هنا.</div>
   <button class="btn" id="exp">تصدير إلى Excel</button> <label class="btn alt" style="display:inline-block;cursor:pointer">استيراد من Excel<input id="imp" type="file" accept=".xlsx,.xls" hidden></label></div>`}
 
@@ -281,6 +281,15 @@ document.addEventListener('click',async e=>{
     save();toast='تم حفظ الأسعار ✓';render();return}
   if(b.id==='addCur'){const c=(v('newcur')||'').trim().toUpperCase().replace(/[^A-Z]/g,'');if(c&&!(c in S.rates)){S.rates[c]=0;save()}render();return}
   if(b.id==='saveSync'){S.sync={url:v('syncUrl').trim(),token:v('syncTok').trim()};saveLocal();sstat='جارٍ الاتصال...';render();pull(true);return}
+  if(b.id==='pullForce'){
+    if(!SY())return alert('اربط الجدول أولًا');
+    if(!confirm('سيتم استبدال كل بيانات هذا الجهاز ببيانات الجدول. متابعة؟'))return;
+    sstat='جارٍ الجلب...';render();
+    try{const r=await fetch(S.sync.url+'?token='+encodeURIComponent(S.sync.token));const j=await r.json();
+      if(j.error){bad('رفض الخادم: '+j.error);return}
+      if(!remHas(j)){bad('الجدول فارغ؛ لم يُستبدل شيء');return}
+      applyRemote(j)}catch(e){bad('تعذّر الاتصال بـ Google')}
+    return}
   if(b.id==='syncNow'){sstat='جارٍ المزامنة...';render();pull();return}
   if(b.id==='upd'){pstat='جارٍ التحديث...';render();fetchPrices();return}
   if(b.id==='exp')doExport();
@@ -339,10 +348,10 @@ const locHas=()=>(S.sav.length+S.inv.length+S.exp.length+(S.debt||[]).length)>0;
 function applyRemote(j){
   const nm=['amt','grams','karat','ret','soldAmt','paid'],fix=a=>(a||[]).map(x=>{nm.forEach(k=>{if(k in x&&x[k]!=='')x[k]=+x[k]});return x});
   const st=j.settings||{};
-  S.sav=fix(j.sav);S.inv=fix(j.inv);S.exp=fix(j.exp);S.debt=fix(j.debt);
+  S.sav=fix(j.sav).map(x=>{x.sold=(x.sold===1||x.sold==='1'||x.sold===true)?1:'';return x});S.inv=fix(j.inv);S.exp=fix(j.exp);S.debt=fix(j.debt);
   S.gold=+st.gold||0;S.silver=+st.silver||0;if(st.disp)S.disp=st.disp;S.man=st.man||{};S.upd=st.upd||'';
   S.rates=Object.assign({USD:1},st.rates);S.ts=+j.ts||Date.now();saveLocal();
-  sstat='تم جلب بياناتك من Google Sheets ✓';if(tab!=='add')render();
+  sstat='تم جلب بياناتك من Google Sheets ✓'+(j.debt===undefined?' — تنبيه: سكربت Google قديم لا يدعم الديون، حدّث الكود.':'');fetchPrices();if(tab!=='add')render();
 }
 async function pull(first){
   if(!SY())return;
