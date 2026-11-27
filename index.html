@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>محفظتي المالية</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f6b57">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -60,7 +66,7 @@ const def=()=>({rates:{USD:1,TRY:0,SYP:0,EUR:0,SAR:0},gold:0,silver:0,disp:'USD'
 let pstat='',sstat='';
 let S=def();
 let tab='dash', addSec='sav', savKind='عملة', toast='';
-let payId=null,so='new',fA='all',fE='all',rf='all',rfe='all',editId=null,sellId=null;
+let dip=null,payId=null,so='new',fA='all',fE='all',rf='all',rfe='all',editId=null,sellId=null;
 try{const r=localStorage.getItem(KEY);if(r)S=Object.assign(def(),JSON.parse(r))}catch(e){}
 const saveLocal=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 let pushT;const save=()=>{S.ts=Date.now();saveLocal();clearTimeout(pushT);pushT=setTimeout(push,1500)};
@@ -128,7 +134,7 @@ function dash(){
   if(fA!=='all'){
     const rows=(fA==='dIn'||fA==='dOut')?DR(fA).map(x=>[esc(x.name),esc('المتبقي '+num(remAmt(x))+' '+x.cur+(x.due?' · استحقاق '+x.due:'')),rem(x)]):fA==='inv'?byNew(S.inv).map(x=>[esc(x.name),esc(num(x.amt)+' '+x.cur),invUSD(x)]):byNew(by(fA)).map(x=>x.kind==='عملة'?[esc(num(x.amt)+' '+x.cur),esc(x.note||x.date||''),savUSD(x)]:[esc(x.metal+' عيار '+x.karat+' — '+num(x.grams)+' غ'),esc(x.note||x.date||''),savUSD(x)]);
     det=`<div class="card"><h3>تفاصيل: ${esc(lbl)}</h3>${rows.length?rows.map(r=>`<div class="li"><div><b>${r[0]}</b><small>${r[1]}</small></div><b>${fmt(r[2])}</b></div>`).join(''):'<div class="sub">لا يوجد</div>'}</div>`}
-  return `${mi.length?`<div class="warn">أدخل من تبويب «الإعدادات»: ${esc(mi.join('، '))} — حتى تُحسب القيم بدقة.</div>`:''}
+  return `${dip&&!isApp()?'<div class="warn" style="background:var(--pri2);color:var(--pri)">ثبّت التطبيق على جوالك <button class="btn sm" id="install" style="margin-inline-start:8px">تثبيت</button></div>':''}${mi.length?`<div class="warn">أدخل من تبويب «الإعدادات»: ${esc(mi.join('، '))} — حتى تُحسب القيم بدقة.</div>`:''}
   <div class="seg">${TYPES.map(t=>`<button data-fa="${t[0]}" class="${fA===t[0]?'on':''}">${t[1]}</button>`).join('')}</div>
   <div class="card hero"><small>${fA==='all'?'صافي الثروة الإجمالي':'إجمالي '+esc(lbl)}</small><div class="big">${fmt(val[fA])}</div>
   <small>إجمالي الذهب: ${num(gg)} غ بمكافئ عيار 24 · ${num(gg*24/21)} غ بمكافئ عيار 21</small></div>
@@ -192,6 +198,8 @@ function recs(){
   if(rf==='all'||rf==='sold'){const so=S.sav.filter(x=>x.sold);h+=`<div class="card"><h3>معادن مباعة (${so.length})</h3>${so.length?grp(so,x=>x.soldDate||x.date||'',x=>`<div class="li"><div><b>${esc(x.metal)} عيار ${esc(x.karat)} — ${num(x.grams)} غ</b><small>بيعت ${x.soldAmt?'بـ '+num(x.soldAmt)+' '+esc(x.soldCur):''} — خارج الإجمالي</small><small class="dt">📅 تاريخ البيع: ${esc(x.soldDate||'—')} · تاريخ الإضافة: ${esc(x.date||'—')}</small></div><div class="acts"><button class="btn alt sm" data-undo="${x.id}">تراجع</button><button class="btn red" data-del="${x.id}">حذف</button></div></div>`):'<div class="sub">لا يوجد</div>'}</div>`}
   return h}
 
+const isApp=()=>{try{return matchMedia('(display-mode: standalone)').matches}catch(e){return false}};
+const instCard=()=>isApp()?'':`<div class="card"><h3>تثبيت على الجوال</h3><div class="sub">على أندرويد (Chrome): ${dip?'اضغط الزر بالأسفل.':'من قائمة ⋮ في المتصفح اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية».'} يفتح كتطبيق مستقل بأيقونة وبشاشة كاملة، وتبقى بياناتك محفوظة. التثبيت يعمل عند فتح الرابط من GitHub Pages (أو أي استضافة HTTPS).</div>${dip?'<button class="btn" id="install">تثبيت التطبيق</button>':''}</div>`;
 function about(){
   return `<div class="card about"><h3>محفظتي المالية — My Wallet</h3>
   <p>تطبيق شخصي لإدارة المصروفات الخاصة والمدفوعات اليومية والشهرية، وجميع أنواع المدفوعات والأصول من معادن ونقود واستثمارات أخرى.</p>
@@ -205,7 +213,7 @@ function about(){
   <div class="card about"><h3>النص الأصلي في README</h3><p dir="ltr" style="text-align:left;color:var(--mut)">it personal application contain the private expences and payemnt based daily montly and all the type of payments from metal, money and other investimenst it is designed by fuad aldunifat</p></div>`}
 
 function sett(){
-  return `<div class="card"><h3>الأسعار والعملات</h3><div class="sub">تُجلب الأسعار تلقائيًا (الذهب والفضة من gold-api.com، والعملات من open.er-api.com). سعر الصرف = كم وحدة من العملة لكل دولار. علّم «يدوي» على أي سعر تريد تثبيته (مثل الليرة السورية بسعر السوق).</div>
+  return `${instCard()}<div class="card"><h3>الأسعار والعملات</h3><div class="sub">تُجلب الأسعار تلقائيًا (الذهب والفضة من gold-api.com، والعملات من open.er-api.com). سعر الصرف = كم وحدة من العملة لكل دولار. علّم «يدوي» على أي سعر تريد تثبيته (مثل الليرة السورية بسعر السوق).</div>
   <button class="btn alt" style="margin:0 0 6px" id="upd">تحديث الأسعار الآن</button><div class="sub">${esc(pstat)}${S.upd?' آخر تحديث: '+esc(S.upd):''}</div>
   <div class="row"><div><label>أونصة الذهب (دولار) <input type="checkbox" data-man="gold" ${S.man.gold?'checked':''} style="width:auto"> يدوي</label><input id="gold" type="number" step="any" value="${+S.gold||''}"></div><div><label>أونصة الفضة (دولار) <input type="checkbox" data-man="silver" ${S.man.silver?'checked':''} style="width:auto"> يدوي</label><input id="silver" type="number" step="any" value="${+S.silver||''}"></div></div>
   ${Object.keys(S.rates).filter(c=>c!=='USD').map(c=>`<label>${esc(c)} لكل 1 دولار <input type="checkbox" data-man="${esc(c)}" ${S.man[c]?'checked':''} style="width:auto"> يدوي</label><input data-rate="${esc(c)}" type="number" step="any" value="${+S.rates[c]||''}">`).join('')}
@@ -280,7 +288,7 @@ document.addEventListener('click',async e=>{
     document.querySelectorAll('[data-rate]').forEach(i=>S.rates[i.dataset.rate]=+i.value||0);
     save();toast='تم حفظ الأسعار ✓';render();return}
   if(b.id==='addCur'){const c=(v('newcur')||'').trim().toUpperCase().replace(/[^A-Z]/g,'');if(c&&!(c in S.rates)){S.rates[c]=0;save()}render();return}
-  if(b.id==='saveSync'){S.sync={url:v('syncUrl').trim(),token:v('syncTok').trim()};saveLocal();sstat='جارٍ الاتصال...';render();pull(true);return}
+  if(b.id==='saveSync'){const ns={url:v('syncUrl').trim(),token:v('syncTok').trim()},ch=S.sync.url!==ns.url;S.sync=ns;saveLocal();sstat='جارٍ الاتصال...';render();pull(ch);return}
   if(b.id==='pullForce'){
     if(!SY())return alert('اربط الجدول أولًا');
     if(!confirm('سيتم استبدال كل بيانات هذا الجهاز ببيانات الجدول. متابعة؟'))return;
@@ -290,6 +298,7 @@ document.addEventListener('click',async e=>{
       if(!remHas(j)){bad('الجدول فارغ؛ لم يُستبدل شيء');return}
       applyRemote(j)}catch(e){bad('تعذّر الاتصال بـ Google')}
     return}
+  if(b.id==='install'){if(dip){dip.prompt();try{await dip.userChoice}catch(e){}dip=null;render()}else alert('من قائمة المتصفح ⋮ اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية».');return}
   if(b.id==='syncNow'){sstat='جارٍ المزامنة...';render();pull();return}
   if(b.id==='upd'){pstat='جارٍ التحديث...';render();fetchPrices();return}
   if(b.id==='exp')doExport();
@@ -368,6 +377,9 @@ async function pull(first){
   }catch(e){bad('تعذّر الاتصال بـ Google. تحقق من الرابط (يجب أن ينتهي بـ /exec)، ولاحظ أن الصفحة داخل claude.ai تحجب الاتصال الخارجي.')}
   if(tab==='set')render();
 }
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();dip=e;if(tab==='dash'||tab==='set'||tab==='about')render()});
+window.addEventListener('appinstalled',()=>{dip=null;toast='تم تثبيت التطبيق ✓';render()});
+if('serviceWorker' in navigator&&/^https?:/.test(location.protocol))navigator.serviceWorker.register('sw.js').catch(()=>{});
 render();
 (async()=>{await pull();await fetchPrices()})();
 </script>
