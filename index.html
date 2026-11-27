@@ -44,7 +44,7 @@ input,select,textarea{width:100%;font:inherit;padding:9px 10px;border:1px solid 
 .li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--br)}
 .li:last-child{border:0}.li small{color:var(--mut);display:block}
 .warn{background:#fff3d6;color:#6b4a00;border-radius:12px;padding:10px;font-size:13px;margin-bottom:12px}
-.tw{overflow-x:auto}.dt{color:var(--gold);font-size:12px!important}.gh{background:var(--pri2);color:var(--pri);padding:4px 10px;border-radius:8px;margin:10px 0 2px;font-weight:600;font-size:13px}.about p{margin:6px 0}.about ul{padding-inline-start:20px;margin:6px 0}.about a{color:var(--pri)}.sm{padding:3px 9px!important;margin:0!important;font-size:13px!important}.acts{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.tw{overflow-x:auto}.tick{position:sticky;top:0;z-index:4;overflow:hidden;background:#0f6b57;color:#fff;border-radius:12px;margin:0 0 10px;padding:6px 0;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.15)}.trk{display:flex;width:max-content;animation:tk 45s linear infinite}.trk:hover,.trk:active{animation-play-state:paused}.ti{padding:0 22px;font-size:13px}.ti b{opacity:.85;font-weight:600;margin-inline-end:6px}@keyframes tk{from{transform:translateX(0)}to{transform:translateX(50%)}}@media (prefers-reduced-motion:reduce){.trk{animation:none}.tick{overflow-x:auto}}.dt{color:var(--gold);font-size:12px!important}.gh{background:var(--pri2);color:var(--pri);padding:4px 10px;border-radius:8px;margin:10px 0 2px;font-weight:600;font-size:13px}.about p{margin:6px 0}.about ul{padding-inline-start:20px;margin:6px 0}.about a{color:var(--pri)}.sm{padding:3px 9px!important;margin:0!important;font-size:13px!important}.acts{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
 h3{margin:0 0 6px;font-size:15px}
 </style>
 </head>
@@ -200,6 +200,15 @@ function recs(){
 
 const isApp=()=>{try{return matchMedia('(display-mode: standalone)').matches}catch(e){return false}};
 const instCard=()=>isApp()?'':`<div class="card"><h3>تثبيت على الجوال</h3><div class="sub">على أندرويد (Chrome): ${dip?'اضغط الزر بالأسفل.':'من قائمة ⋮ في المتصفح اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية».'} يفتح كتطبيق مستقل بأيقونة وبشاشة كاملة، وتبقى بياناتك محفوظة. التثبيت يعمل عند فتح الرابط من GitHub Pages (أو أي استضافة HTTPS).</div>${dip?'<button class="btn" id="install">تثبيت التطبيق</button>':''}</div>`;
+function ticker(){
+  const fx=c=>+S.rates[c]>0?num(S.rates[c]):'—';
+  const g=+S.gold||0,gm=g/OZ;
+  const both=u=>{if(!(u>0))return '—';let t='$'+num(u);if(S.disp!=='USD'&&+S.rates[S.disp]>0)t+=' · '+num(u*S.rates[S.disp])+' '+S.disp;return t};
+  const it=[['🥇 أونصة الذهب',g>0?'$'+num(g):'—'],['غرام ذهب عيار 24',both(gm)],['غرام ذهب عيار 21',both(gm*21/24)],['💵 الدولار / الليرة التركية',fx('TRY')],['الدولار / الليرة السورية',fx('SYP')],['الدولار / الريال السعودي',fx('SAR')]];
+  if(S.upd)it.push(['🕒 آخر تحديث',S.upd]);
+  const h=it.map(x=>`<span class="ti"><b>${x[0]}</b> ${esc(x[1])}</span>`).join('');
+  return `<div class="tick"><div class="trk" style="animation-duration:${it.length*7}s">${h}${h}</div></div>`}
+const refreshTicker=()=>{const t=document.querySelector('.tick');if(t)t.outerHTML=ticker()};
 function about(){
   return `<div class="card about"><h3>محفظتي المالية — My Wallet</h3>
   <p>تطبيق شخصي لإدارة المصروفات الخاصة والمدفوعات اليومية والشهرية، وجميع أنواع المدفوعات والأصول من معادن ونقود واستثمارات أخرى.</p>
@@ -229,7 +238,7 @@ function sett(){
 
 function render(){
   const t={dash:['اللوحة الرئيسية','ملخص ثروتك وعوائدك ومصاريفك',dash],add:['إضافة','مدخرات واستثمارات ومصروفات',add],recs:['السجلات','راجع أو احذف',recs],set:['الإعدادات','الأسعار وملف Excel',sett],about:['حول الموقع','عن التطبيق',about]}[tab];
-  $('#app').innerHTML=`<h1>محفظتي المالية</h1><div class="sub">${t[0]} — ${t[1]}${S.upd?' · أسعار: '+esc(S.upd):''}</div>${toast?`<div class="warn">${esc(toast)}</div>`:''}${t[2]()}`;
+  $('#app').innerHTML=`${ticker()}<h1>محفظتي المالية</h1><div class="sub">${t[0]} — ${t[1]}${S.upd?' · أسعار: '+esc(S.upd):''}</div>${toast?`<div class="warn">${esc(toast)}</div>`:''}${t[2]()}`;
   $('#nav').innerHTML=[['dash','الرئيسية'],['add','إضافة'],['recs','السجلات'],['set','الإعدادات'],['about','حول']].map(n=>`<button data-tab="${n[0]}" class="${tab===n[0]?'on':''}">${n[1]}</button>`).join('');
   toast='';
 }
@@ -341,7 +350,7 @@ async function fetchPrices(){
     Object.keys(S.rates).forEach(c=>{if(c!=='USD'&&!S.man[c]&&rt[c]>0){S.rates[c]=rt[c];ok++}})}catch(e){bad.push('العملات')}
   if(ok){S.upd=new Date().toLocaleString('en-GB');save()}
   pstat=bad.length?('تعذّر جلب: '+bad.join('، ')+(ok?'':' — إن كنت تفتح الصفحة داخل claude.ai فالاتصال الخارجي محجوب، افتح النسخة المحمّلة أو أدخل الأسعار يدويًا.')+' '):'تم التحديث ✓ ';
-  if(tab==='dash'||tab==='set')render();
+  refreshTicker();if(tab==='dash'||tab==='set')render();
 }
 const SY=()=>S.sync&&S.sync.url&&S.sync.token;
 const payload=()=>({ts:S.ts,sav:S.sav,inv:S.inv,exp:S.exp,debt:S.debt,settings:{gold:S.gold,silver:S.silver,disp:S.disp,upd:S.upd,man:S.man,rates:S.rates}});
